@@ -1,99 +1,57 @@
-import fs from "fs/promises";
-import path from "path";
-import { config } from "./config.js";
+import { createClient } from '@supabase/supabase-js'
 
-const EMPTY_STORE = { items: [] };
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY)
 
+/**
+ * Insert or update a classification (good/bad) for an email.
+ * Each user-email pair is unique in the DB.
+ */
 export async function upsertClassification(entry) {
-  const store = await loadStore();
-  const normalizedLabel = entry.label?.toLowerCase();
+  const normalizedLabel = entry.label?.toLowerCase()
   const normalizedUser =
-    typeof entry.user === "string" ? entry.user.trim() : "";
+    typeof entry.user === 'string' ? entry.user.trim() : ''
 
   if (!normalizedUser) {
-    throw new Error("Classification requires a user identifier.");
+    throw new Error('Classification requires a user identifier.')
   }
 
-  if (!["good", "bad"].includes(normalizedLabel)) {
-    throw new Error('Classification label must be either "good" or "bad".');
+  if (!['good', 'bad'].includes(normalizedLabel)) {
+    throw new Error('Classification label must be either "good" or "bad".')
   }
 
-  const timestamp = new Date().toISOString();
-  const existingIndex = store.items.findIndex(
-    (item) => item.id === entry.id && item.user === normalizedUser
-  );
+  const timestamp = new Date().toISOString()
 
   const payload = {
-    id: entry.id,
+    user_id: normalizedUser,
+    email_id: entry.id,
     label: normalizedLabel,
-    subject: entry.subject || "(no subject)",
-    from: entry.from || "Unknown sender",
-    snippet: entry.snippet || "",
+    subject: entry.subject || '(no subject)',
+    from_field: entry.from || 'Unknown sender',
+    snippet: entry.snippet || '',
     date: entry.date || null,
-    body: entry.body || "",
-    labelIds: Array.isArray(entry.labelIds) ? entry.labelIds : [],
-    updatedAt: timestamp,
-    user: normalizedUser,
-  };
-
-  if (existingIndex >= 0) {
-    store.items[existingIndex] = { ...store.items[existingIndex], ...payload };
-  } else {
-    store.items.push({ ...payload, createdAt: timestamp });
+    body: entry.body || '',
+    label_ids: Array.isArray(entry.labelIds) ? entry.labelIds : [],
+    updated_at: timestamp,
+    created_at: timestamp,
   }
 
-  await persistStore(store);
-  return payload;
+  const { error } = await supabase.from('classifications').upsert(payload)
+  if (error) throw new Error(`Failed to save classification: ${error.message}`)
+
+  return payload
 }
 
+/**
+ * Get all classifications filtered by label and/or user.
+ */
 export async function getClassifications({ label, user } = {}) {
-  const store = await loadStore();
-  const normalizedLabel =
-    typeof label === "string" && label.trim()
-      ? label.trim().toLowerCase()
-      : null;
-  const normalizedUser =
-    typeof user === "string" && user.trim() ? user.trim() : null;
+  let query = supabase.from('classifications').select('*')
 
-  return store.items.filter((item) => {
-    if (normalizedUser && item.user !== normalizedUser) return false;
-    if (normalizedLabel && item.label !== normalizedLabel) return false;
-    return true;
-  });
-}
+  if (user) query = query.eq('user_id', user)
+  if (label) query = query.eq('label', label.toLowerCase())
 
-async function loadStore() {
-  try {
-    const raw = await fs.readFile(config.classificationStorePath, "utf-8");
-    return JSON.parse(raw);
-  } catch (error) {
-    if (error.code === "ENOENT") {
-      await ensureStore();
-      return EMPTY_STORE;
-    }
-    throw error;
-  }
-}
+  const { data, error } = await query
+  if (error) throw new Error(`Error fetching classifications: ${error.message}`)
 
-async function persistStore(store) {
-  await ensureStore();
-  const serialized = JSON.stringify(store, null, 2);
-  await fs.writeFile(config.classificationStorePath, serialized);
-}
-
-async function ensureStore() {
-  const dir = path.dirname(config.classificationStorePath);
-  await fs.mkdir(dir, { recursive: true });
-  try {
-    await fs.access(config.classificationStorePath);
-  } catch (error) {
-    if (error.code === "ENOENT") {
-      await fs.writeFile(
-        config.classificationStorePath,
-        JSON.stringify(EMPTY_STORE, null, 2)
-      );
-    } else {
-      throw error;
-    }
-  }
+  return data || []
 }

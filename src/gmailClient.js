@@ -1,7 +1,6 @@
 import { Buffer } from "node:buffer";
 import { google } from "googleapis";
 import { config } from "./config.js";
-import fs from "fs/promises";
 import { getUserTokens, saveUserTokens } from "./userStore.js";
 
 const SCOPES = [
@@ -102,38 +101,23 @@ export async function listInboxEmails({
     });
 
     const messages = response.data.messages || [];
-    if (!messages.length) {
-      break;
-    }
+    if (!messages.length) break;
 
     for (const message of messages) {
-      if (processedIds.has(message.id)) {
-        continue;
-      }
-
+      if (processedIds.has(message.id)) continue;
       processedIds.add(message.id);
 
-      if (exclusionSet.has(message.id)) {
-        continue;
-      }
+      if (exclusionSet.has(message.id)) continue;
 
       messageSummaries.push(message);
-
-      if (messageSummaries.length >= targetCount) {
-        break;
-      }
+      if (messageSummaries.length >= targetCount) break;
     }
 
-    if (!response.data.nextPageToken) {
-      break;
-    }
-
+    if (!response.data.nextPageToken) break;
     pageToken = response.data.nextPageToken;
   }
 
-  if (!messageSummaries.length) {
-    return [];
-  }
+  if (!messageSummaries.length) return [];
 
   const detailedMessages = await Promise.all(
     messageSummaries.map(async (message) => {
@@ -228,9 +212,7 @@ async function getAuthorizedClient(userId) {
   const oauthClient = await createOAuthClient();
   oauthClient.setCredentials(tokens);
   oauthClient.on("tokens", (nextTokens) => {
-    if (!nextTokens) {
-      return;
-    }
+    if (!nextTokens) return;
     const combined = {
       ...oauthClient.credentials,
       ...nextTokens,
@@ -242,8 +224,9 @@ async function getAuthorizedClient(userId) {
   return oauthClient;
 }
 
+// ✅ Updated version (replaces old readJSON + createOAuthClient)
 async function createOAuthClient() {
-  const credentials = await readJSON(config.credentialsPath);
+  const credentials = await loadCredentials();
   const { client_id, client_secret, redirect_uris } =
     credentials.installed || credentials.web || {};
 
@@ -256,8 +239,15 @@ async function createOAuthClient() {
   return new google.auth.OAuth2(client_id, client_secret, redirect_uris[0]);
 }
 
-async function readJSON(filePath) {
-  const content = await fs.readFile(filePath, "utf-8");
+async function loadCredentials() {
+  // ✅ Prefer environment variable (for Vercel)
+  if (process.env.GOOGLE_CREDENTIALS) {
+    return JSON.parse(process.env.GOOGLE_CREDENTIALS);
+  }
+
+  // 🧩 Fallback for local dev
+  const fs = await import("fs/promises");
+  const content = await fs.readFile(config.credentialsPath, "utf-8");
   return JSON.parse(content);
 }
 
@@ -268,15 +258,11 @@ function extractHeader(headers, name) {
 function buildGmailQuery(query, after, before) {
   const parts = [];
 
-  if (query && query.trim()) {
-    parts.push(query.trim());
-  }
-
+  if (query && query.trim()) parts.push(query.trim());
   if (after instanceof Date && !Number.isNaN(after.getTime())) {
     const afterSeconds = Math.floor(after.getTime() / 1000);
     parts.push(`after:${afterSeconds}`);
   }
-
   if (before instanceof Date && !Number.isNaN(before.getTime())) {
     const beforeSeconds = Math.floor(before.getTime() / 1000);
     parts.push(`before:${beforeSeconds}`);
@@ -286,24 +272,15 @@ function buildGmailQuery(query, after, before) {
 }
 
 function extractEmailBody(payload) {
-  if (!payload) {
-    return "";
-  }
+  if (!payload) return "";
 
-  const result = {
-    html: null,
-    text: null,
-  };
+  const result = { html: null, text: null };
 
   const collectBody = (part) => {
-    if (!part) {
-      return;
-    }
+    if (!part) return;
 
     const mime = (part.mimeType || "").toLowerCase();
-    const data = part.body?.data
-      ? decodeBase64(part.body.data)
-      : undefined;
+    const data = part.body?.data ? decodeBase64(part.body.data) : undefined;
 
     if (mime === "text/html" && data && !result.html) {
       result.html = data.trim();
@@ -321,11 +298,8 @@ function extractEmailBody(payload) {
   if (!result.html && !result.text && payload.body?.data) {
     const inline = decodeBase64(payload.body.data).trim();
     if (inline) {
-      if (payload.mimeType === "text/html") {
-        result.html = inline;
-      } else {
-        result.text = inline;
-      }
+      if (payload.mimeType === "text/html") result.html = inline;
+      else result.text = inline;
     }
   }
 

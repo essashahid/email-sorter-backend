@@ -35,20 +35,25 @@ function getWritablePath(filePath) {
 
 export const config = {
   port: Number(process.env.PORT) || 5000,
-  credentialsPath: resolvePath(process.env.CREDENTIALS_PATH || "credentials.json"),
+  credentialsPath: resolvePath(
+    process.env.CREDENTIALS_PATH || "credentials.json"
+  ),
   tokenPath: resolvePath(process.env.TOKEN_PATH || "token.json"),
   clientOrigin: process.env.CLIENT_ORIGIN || "http://localhost:5173",
   maxEmails: Number(process.env.MAX_EMAILS) || 50,
 
-  // ✅ Automatically writable path for Vercel
   classificationStorePath: getWritablePath(
     resolvePath(process.env.CLASSIFICATION_STORE || "data/classifications.json")
   ),
   userStorePath: getWritablePath(
     resolvePath(process.env.USER_STORE || "data/users.json")
   ),
+
+  sessionSecret: process.env.JWT_SECRET || "dev-secret",
+  isProduction: process.env.NODE_ENV === "production",
 };
 
-// Optional: log actual paths for debugging
 console.log("Classification store path:", config.classificationStorePath);
 console.log("User store path:", config.userStorePath);
+console.log("Environment:", config.isProduction ? "production" : "development");
+console.log("Session secret loaded:", !!config.sessionSecret);

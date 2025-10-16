@@ -56,12 +56,8 @@ export async function getClassifications({ label, user } = {}) {
     typeof user === "string" && user.trim() ? user.trim() : null;
 
   return store.items.filter((item) => {
-    if (normalizedUser && item.user !== normalizedUser) {
-      return false;
-    }
-    if (normalizedLabel && item.label !== normalizedLabel) {
-      return false;
-    }
+    if (normalizedUser && item.user !== normalizedUser) return false;
+    if (normalizedLabel && item.label !== normalizedLabel) return false;
     return true;
   });
 }

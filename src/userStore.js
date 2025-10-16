@@ -65,9 +65,7 @@ export async function saveUserTokens(userId, tokens) {
 }
 
 export async function getUserById(userId) {
-  if (!userId) {
-    return null;
-  }
+  if (!userId) return null;
 
   const store = await loadStore();
   return store.users.find((user) => user.id === userId) || null;

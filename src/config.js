@@ -1,6 +1,7 @@
 import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
+import os from "os";
 
 dotenv.config();
 
@@ -10,17 +11,27 @@ const rootDir = path.resolve(__dirname, "..");
 
 const resolveFromRoot = (relativePath) => path.resolve(rootDir, relativePath);
 
+// Use /tmp on Vercel (serverless) because /var/task is read-only
+function getWritablePath(defaultPath) {
+  if (process.env.VERCEL) {
+    return path.join(os.tmpdir(), path.basename(defaultPath));
+  }
+  return defaultPath;
+}
+
 export const config = {
-  port: Number(process.env.PORT) || 5001,
-  credentialsPath: resolvePath(process.env.CREDENTIALS_PATH || "credentials.json"),
+  port: Number(process.env.PORT) || 5000,
+  credentialsPath: resolvePath(
+    process.env.CREDENTIALS_PATH || "credentials.json"
+  ),
+  tokenPath: resolvePath(process.env.TOKEN_PATH || "token.json"),
   clientOrigin: process.env.CLIENT_ORIGIN || "http://localhost:5173",
   maxEmails: Number(process.env.MAX_EMAILS) || 50,
-  classificationStorePath: resolvePath(
-    process.env.CLASSIFICATION_STORE || "data/classifications.json"
+
+  // ✅ Automatically switches to /tmp on Vercel
+  classificationStorePath: getWritablePath(
+    resolvePath(process.env.CLASSIFICATION_STORE || "data/classifications.json")
   ),
-  userStorePath: resolvePath(process.env.USER_STORE || "data/users.json"),
-  sessionSecret: process.env.SESSION_SECRET || "dev-only-secret-change-me",
-  isProduction: process.env.NODE_ENV === "production",
 };
 
 function resolvePath(relativePath) {

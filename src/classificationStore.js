@@ -35,10 +35,15 @@ export async function upsertClassification(entry) {
     created_at: timestamp,
   }
 
-  const { error } = await supabase.from('classifications').upsert(payload)
+  const { data, error } = await supabase
+    .from('classifications')
+    .upsert(payload)
+    .select()
+    .single()
+
   if (error) throw new Error(`Failed to save classification: ${error.message}`)
 
-  return payload
+  return normalizeClassification(data || payload)
 }
 
 /**
@@ -53,5 +58,26 @@ export async function getClassifications({ label, user } = {}) {
   const { data, error } = await query
   if (error) throw new Error(`Error fetching classifications: ${error.message}`)
 
-  return data || []
+  return (data || []).map(normalizeClassification).filter(Boolean)
+}
+
+function normalizeClassification(record) {
+  if (!record) return null
+  return {
+    id: record.email_id || record.id || null,
+    user: record.user_id || null,
+    label: record.label || null,
+    subject: record.subject || '(no subject)',
+    from: record.from_field || record.from || 'Unknown sender',
+    snippet: record.snippet || '',
+    body: record.body || '',
+    date: record.date || null,
+    labelIds: Array.isArray(record.label_ids)
+      ? record.label_ids
+      : Array.isArray(record.labelIds)
+      ? record.labelIds
+      : [],
+    createdAt: record.created_at || null,
+    updatedAt: record.updated_at || null,
+  }
 }

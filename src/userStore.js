@@ -57,7 +57,17 @@ export async function getUserById(userId) {
     return null
   }
 
-  return data || null
+  if (!data) return null
+
+  return {
+    id: data.user_id,
+    email: data.email || '',
+    name: data.name || '',
+    picture: data.picture || '',
+    tokens: data.tokens || null,
+    createdAt: data.created_at || null,
+    updatedAt: data.updated_at || null,
+  }
 }
 
 /**

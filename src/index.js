@@ -16,11 +16,7 @@ import {
   getClassifications,
   upsertClassification,
 } from "./classificationStore.js";
-import {
-  getUserById,
-  getUserTokens,
-  upsertUserRecord,
-} from "./userStore.js";
+import { getUserById, upsertUserRecord } from "./userStore.js";
 
 const SESSION_COOKIE = "triage_session";
 const STATE_COOKIE = "oauth_state";
@@ -252,8 +248,7 @@ async function getAuthenticatedUser(req) {
       return null;
     }
 
-    const tokens = await getUserTokens(user.id);
-    if (!tokens) {
+    if (!user.tokens) {
       return null;
     }
 
